@@ -1,0 +1,82 @@
+name: Record Smart Connect Shows
+
+# All cron times are in UTC. Nigeria is WAT (UTC+1), no daylight saving.
+# Each job starts ~3 min before the show and records ~35 min (5 min buffer)
+# to absorb GitHub cron lateness and avoid clipping the open/close.
+#
+# Show schedule (WAT -> UTC):
+#   XL 106.9     Tue 10:30 AM WAT -> 09:27 UTC
+#   Invicta 98.9 Tue 03:30 PM WAT -> 14:27 UTC
+#   Afia 99.3    Fri 05:00 PM WAT -> 15:57 UTC
+#   RR 92.9      Fri 05:30 PM WAT -> 16:27 UTC
+#   RR 107.1     Fri 06:30 PM WAT -> 17:27 UTC
+
+on:
+  schedule:
+    - cron: '27 9 * * 2'    # XL 106.9 - Tuesday
+    - cron: '27 14 * * 2'   # Invicta 98.9 - Tuesday
+    - cron: '57 15 * * 5'   # Afia 99.3 - Friday
+    - cron: '27 16 * * 5'   # RR 92.9 - Friday
+    - cron: '27 17 * * 5'   # RR 107.1 - Friday
+  workflow_dispatch:        # allows manual "Run workflow" button for testing
+    inputs:
+      station:
+        description: 'Station id to test-record (xl1069, inv989, afia993, rr929, rr1071)'
+        required: true
+        default: 'afia993'
+      minutes:
+        description: 'Minutes to record'
+        required: true
+        default: '2'
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python deps
+        run: pip install -r requirements.txt
+
+      - name: Determine which station to record
+        id: pick
+        run: |
+          # Map the cron schedule that triggered this run to a station id.
+          # GitHub exposes the matched cron in github.event.schedule.
+          CRON="${{ github.event.schedule }}"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "station=${{ github.event.inputs.station }}" >> "$GITHUB_OUTPUT"
+            echo "minutes=${{ github.event.inputs.minutes }}" >> "$GITHUB_OUTPUT"
+          else
+            case "$CRON" in
+              "27 9 * * 2")  echo "station=xl1069"  >> "$GITHUB_OUTPUT" ;;
+              "27 14 * * 2") echo "station=inv989"  >> "$GITHUB_OUTPUT" ;;
+              "57 15 * * 5") echo "station=afia993" >> "$GITHUB_OUTPUT" ;;
+              "27 16 * * 5") echo "station=rr929"   >> "$GITHUB_OUTPUT" ;;
+              "27 17 * * 5") echo "station=rr1071"  >> "$GITHUB_OUTPUT" ;;
+            esac
+            echo "minutes=35" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Record and upload
+        env:
+          GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+          GDRIVE_FOLDER_ID: ${{ secrets.GDRIVE_FOLDER_ID }}
+          STREAM_XL1069: ${{ secrets.STREAM_XL1069 }}
+          STREAM_INV989: ${{ secrets.STREAM_INV989 }}
+          STREAM_AFIA993: ${{ secrets.STREAM_AFIA993 }}
+          STREAM_RR929: ${{ secrets.STREAM_RR929 }}
+          STREAM_RR1071: ${{ secrets.STREAM_RR1071 }}
+        run: |
+          python record_and_upload.py \
+            --station "${{ steps.pick.outputs.station }}" \
+            --minutes "${{ steps.pick.outputs.minutes }}"
