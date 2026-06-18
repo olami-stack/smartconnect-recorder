@@ -36,11 +36,8 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-     - name: Install ffmpeg
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ffmpeg
-
+    - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
