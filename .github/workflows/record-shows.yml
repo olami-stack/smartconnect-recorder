@@ -18,7 +18,7 @@ on:
     - cron: '57 15 * * 5'   # Afia 99.3 - Friday
     - cron: '27 16 * * 5'   # RR 92.9 - Friday
     - cron: '27 17 * * 5'   # RR 107.1 - Friday
-  workflow_dispatch:        # allows manual "Run workflow" button for testing
+  workflow_dispatch:
     inputs:
       station:
         description: 'Station id to test-record (xl1069, inv989, afia993, rr929, rr1071)'
@@ -36,8 +36,9 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-    - name: Install ffmpeg
+      - name: Install ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -49,8 +50,6 @@ jobs:
       - name: Determine which station to record
         id: pick
         run: |
-          # Map the cron schedule that triggered this run to a station id.
-          # GitHub exposes the matched cron in github.event.schedule.
           CRON="${{ github.event.schedule }}"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "station=${{ github.event.inputs.station }}" >> "$GITHUB_OUTPUT"
