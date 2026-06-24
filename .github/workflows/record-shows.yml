@@ -1,23 +1,22 @@
 name: Record Smart Connect Shows
-
-# All cron times are in UTC. Nigeria is WAT (UTC+1), no daylight saving.
-# Each job starts ~3 min before the show and records ~35 min (5 min buffer)
-# to absorb GitHub cron lateness and avoid clipping the open/close.
+# Cron times are UTC. Nigeria is WAT (UTC+1), no daylight saving.
+# Each job starts 15 min EARLY (absorbs GitHub cron lateness) and records
+# 55 min (covers the 30-min show + late start + stream-delay tail), so the
+# full broadcast is always captured even with GitHub delay and stream lag.
 #
-# Show schedule (WAT -> UTC):
-#   XL 106.9     Tue 10:30 AM WAT -> 09:27 UTC
-#   Invicta 98.9 Tue 03:30 PM WAT -> 14:27 UTC
-#   Afia 99.3    Fri 05:00 PM WAT -> 15:57 UTC
-#   RR 92.9      Fri 05:30 PM WAT -> 16:27 UTC
-#   RR 107.1     Fri 06:30 PM WAT -> 17:27 UTC
-
+# Show schedule (WAT) -> record window (start time, 55 min long):
+#   XL 106.9     Tue 10:30-11:00 AM -> start 10:15 (records to ~11:10)
+#   Invicta 98.9 Tue 03:30-04:00 PM -> start 03:15 (records to ~04:10)
+#   Afia 99.3    Fri 05:00-05:30 PM -> start 04:45 (records to ~05:40)
+#   RR 92.9      Fri 05:30-06:00 PM -> start 05:15 (records to ~06:10)
+#   RR 107.1     Fri 06:30-07:00 PM -> start 06:15 (records to ~07:10)
 on:
   schedule:
-    - cron: '27 9 * * 2'    # XL 106.9 - Tuesday
-    - cron: '27 14 * * 2'   # Invicta 98.9 - Tuesday
-    - cron: '57 15 * * 5'   # Afia 99.3 - Friday
-    - cron: '27 16 * * 5'   # RR 92.9 - Friday
-    - cron: '27 17 * * 5'   # RR 107.1 - Friday
+    - cron: '15 9 * * 2'    # XL 106.9 - Tue 10:15 WAT
+    - cron: '15 14 * * 2'   # Invicta 98.9 - Tue 15:15 WAT
+    - cron: '45 15 * * 5'   # Afia 99.3 - Fri 16:45 WAT
+    - cron: '15 16 * * 5'   # RR 92.9 - Fri 17:15 WAT
+    - cron: '15 17 * * 5'   # RR 107.1 - Fri 18:15 WAT
   workflow_dispatch:
     inputs:
       station:
@@ -28,25 +27,20 @@ on:
         description: 'Minutes to record'
         required: true
         default: '2'
-
 jobs:
   record:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-
       - name: Install ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
       - name: Install Python deps
         run: pip install -r requirements.txt
-
       - name: Determine which station to record
         id: pick
         run: |
@@ -56,15 +50,14 @@ jobs:
             echo "minutes=${{ github.event.inputs.minutes }}" >> "$GITHUB_OUTPUT"
           else
             case "$CRON" in
-              "27 9 * * 2")  echo "station=xl1069"  >> "$GITHUB_OUTPUT" ;;
-              "27 14 * * 2") echo "station=inv989"  >> "$GITHUB_OUTPUT" ;;
-              "57 15 * * 5") echo "station=afia993" >> "$GITHUB_OUTPUT" ;;
-              "27 16 * * 5") echo "station=rr929"   >> "$GITHUB_OUTPUT" ;;
-              "27 17 * * 5") echo "station=rr1071"  >> "$GITHUB_OUTPUT" ;;
+              "15 9 * * 2")  echo "station=xl1069"  >> "$GITHUB_OUTPUT" ;;
+              "15 14 * * 2") echo "station=inv989"  >> "$GITHUB_OUTPUT" ;;
+              "45 15 * * 5") echo "station=afia993" >> "$GITHUB_OUTPUT" ;;
+              "15 16 * * 5") echo "station=rr929"   >> "$GITHUB_OUTPUT" ;;
+              "15 17 * * 5") echo "station=rr1071"  >> "$GITHUB_OUTPUT" ;;
             esac
-            echo "minutes=35" >> "$GITHUB_OUTPUT"
+            echo "minutes=55" >> "$GITHUB_OUTPUT"
           fi
-
       - name: Record and upload
         env:
           GDRIVE_CLIENT_ID: ${{ secrets.GDRIVE_CLIENT_ID }}
